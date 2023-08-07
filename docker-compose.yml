@@ -1,30 +1,45 @@
-version: '3'
+version: "3.8"
+
 services:
- web:
-   image: nginx:1.15.6
-   ports:
-     - "8000:80"
-   depends_on:
-     - app
-   volumes:
-     - ./docker/web/default.conf:/etc/nginx/conf.d/default.conf
-     - .:/var/www/html
- app:
-   build: ./docker/php #定義したDockerfileを元にイメージを作るように変更 
-   depends_on:
-     - mysql
-   volumes:
-     - .:/var/www/html
- mysql:
-   image: mysql:5.7
-   environment:
-     MYSQL_DATABASE: sample
-     MYSQL_USER: user
-     MYSQL_PASSWORD: password
-     MYSQL_ROOT_PASSWORD: password
-   ports:
-     - "3306:3306"
-   volumes:
-     - mysql-data:/var/lib/mysql
-volumes:
- mysql-data:
+  database:
+    image: mysql:5.7
+    container_name: db_customer_management
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: db_mysql_customer_management # データベース名
+      MYSQL_ROOT_PASSWORD: root # rootパスワード（任意）
+      MYSQL_USER: admin # ユーザー名（任意）
+      MYSQL_PASSWORD: password # ユーザーのパスワード（任意）
+    volumes:
+      - ./volumes/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./volumes/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      - "5432:5432"
+
+  php-apache:
+    container_name: php_apache_customer_management
+    build:
+      context: ./php
+    ports:
+      - "8000:80" # localhost:8000でアクセスできる
+    volumes:
+      - ./src:/var/www/customer_management
+      - ./apache/default.conf:/etc/apache2/sites-enabled/000-default.conf
+    depends_on:
+      - database # databaseに後に実行する
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    depends_on:
+      - db
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOSTS=db_mysql_customer_management # データベース名
+      - PMA_USER=admin # phpMyAdminのユーザー名
+      - PMA_PASSWORD=password # phpMyAdminのパスワード
+    ports:
+      - "3000:80" # localhost:3000でアクセスできる
+    volumes:
+      - ./volumes/docker/phpmyadmin/sessions:/sessions
+    depends_on:
+      - php-apache # php-apacheの後に実行する
